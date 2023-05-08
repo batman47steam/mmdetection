@@ -43,7 +43,7 @@ def quality_focal_loss(pred, target, beta=2.0):
     bg_class_ind = pred.size(1)
     pos = ((label >= 0) & (label < bg_class_ind)).nonzero().squeeze(1)
     pos_label = label[pos].long()
-    # positives are supervised by bbox quality (IoU) score
+    # positives are supervised by bbox quality (IoU) score, 这里不是都明说了吗，正样本就是由IoU Score监督的
     scale_factor = score[pos] - pred_sigmoid[pos, pos_label]
     loss[pos, pos_label] = F.binary_cross_entropy_with_logits(
         pred[pos, pos_label], score[pos],
@@ -156,9 +156,9 @@ def distribution_focal_loss(pred, label):
     Returns:
         torch.Tensor: Loss tensor with shape (N,).
     """
-    dis_left = label.long()
-    dis_right = dis_left + 1
-    weight_left = dis_right.float() - label
+    dis_left = label.long()     # 相当于是对label进行取整操作，得到label左边的值
+    dis_right = dis_left + 1    # 得到label右边的值
+    weight_left = dis_right.float() - label     # 左右距离实际label的距离
     weight_right = label - dis_left.float()
     loss = F.cross_entropy(pred, dis_left, reduction='none') * weight_left \
         + F.cross_entropy(pred, dis_right, reduction='none') * weight_right

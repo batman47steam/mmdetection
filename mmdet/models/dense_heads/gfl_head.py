@@ -120,22 +120,22 @@ class GFLHead(AnchorHead):
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
         self.reg_max = reg_max
-        super().__init__(
+        super().__init__( # loss_cls:QFL 调用了父类的init方法（anchor_head)
             num_classes=num_classes,
             in_channels=in_channels,
             bbox_coder=bbox_coder,
             init_cfg=init_cfg,
             **kwargs)
 
-        if self.train_cfg:
+        if self.train_cfg: # assigner是进行正负样本分配的，分配策略和ATSS一样
             self.assigner = TASK_UTILS.build(self.train_cfg['assigner'])
             if self.train_cfg.get('sampler', None) is not None:
                 self.sampler = TASK_UTILS.build(
                     self.train_cfg['sampler'], default_args=dict(context=self))
-            else:
+            else: # 为什么还会由sampler？对于分配的正负样本额外的进行采样吗
                 self.sampler = PseudoSampler(context=self)
 
-        self.integral = Integral(self.reg_max)
+        self.integral = Integral(self.reg_max) # 积分求数学期望
         self.loss_dfl = MODELS.build(loss_dfl)
 
     def _init_layers(self) -> None:
@@ -168,7 +168,7 @@ class GFLHead(AnchorHead):
             self.feat_channels, self.cls_out_channels, 3, padding=1)
         self.gfl_reg = nn.Conv2d(
             self.feat_channels, 4 * (self.reg_max + 1), 3, padding=1)
-        self.scales = nn.ModuleList(
+        self.scales = nn.ModuleList( # scales要注意下，好像是可学习的参数
             [Scale(1.0) for _ in self.prior_generator.strides])
 
     def forward(self, x: Tuple[Tensor]) -> Tuple[List[Tensor]]:
@@ -195,7 +195,7 @@ class GFLHead(AnchorHead):
 
         Args:
             x (Tensor): Features of a single scale level.
-            scale (:obj: `mmcv.cnn.Scale`): Learnable scale module to resize
+            scale (:obj: `mmcv.cnn.Scale`): Learnable scale module to resize # 可学习的scale Module, 用对回归分支的预测进行resize
                 the bbox prediction.
 
         Returns:
@@ -289,7 +289,7 @@ class GFLHead(AnchorHead):
             pos_decode_bbox_pred = self.bbox_coder.decode(
                 pos_anchor_centers, pos_bbox_pred_corners)
             pos_decode_bbox_targets = pos_bbox_targets / stride[0]
-            score[pos_inds] = bbox_overlaps(
+            score[pos_inds] = bbox_overlaps( # 正样本就是由这个score监督的，score就是网络预测的bbox和实际的bbox间的IoU Score
                 pos_decode_bbox_pred.detach(),
                 pos_decode_bbox_targets,
                 is_aligned=True)
@@ -318,7 +318,7 @@ class GFLHead(AnchorHead):
 
         # cls (qfl) loss
         loss_cls = self.loss_cls(
-            cls_score, (labels, score),
+            cls_score, (labels, score), # cls_score就是网络直接卷积出的结果，但是label是网络预测出的结果和Iou分支相乘
             weight=label_weights,
             avg_factor=avg_factor)
 
@@ -358,7 +358,7 @@ class GFLHead(AnchorHead):
         assert len(featmap_sizes) == self.prior_generator.num_levels
 
         device = cls_scores[0].device
-        anchor_list, valid_flag_list = self.get_anchors(
+        anchor_list, valid_flag_list = self.get_anchors( # 返回的anchor_size不用深究，由超参数决定的，就是比如说你下采样多少，就决定了对应的anchor size是多少
             featmap_sizes, batch_img_metas, device=device)
 
         cls_reg_targets = self.get_targets(
